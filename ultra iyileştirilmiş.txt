@@ -1,0 +1,53 @@
+//@version=5
+strategy("Optimized PremiumScript - Risk Management", overlay=true)
+
+// Inputs
+leftBars = input(10, "Left Bars")
+rightBars = input(3, "Right Bars")
+minMove = input.float(0.4, "Minimum Price Move %", step=0.1)
+atrPeriod = input(14, "ATR Period")
+atrMultiplier = input.float(2.0, "ATR Multiplier for SL", step=0.1)
+
+// Indicators
+atr = ta.atr(atrPeriod)
+swh = ta.pivothigh(leftBars, rightBars)
+swl = ta.pivotlow(leftBars, rightBars)
+
+// Pivot conditions with minimum price move filter
+swh_cond = not na(swh) and (swh - low) / low * 100 >= minMove
+swl_cond = not na(swl) and (high - swl) / swl * 100 >= minMove
+
+// Keep track of valid pivot levels
+var float hprice = 0.0
+var float lprice = 0.0
+
+if (swh_cond)
+    hprice := swh
+if (swl_cond)
+    lprice := swl
+
+// Entry conditions
+le = swh_cond and not na(hprice)
+se = swl_cond and not na(lprice)
+
+// Risk management
+stopLossLong = hprice - atr * atrMultiplier
+stopLossShort = lprice + atr * atrMultiplier
+
+// Strategy execution
+if (le)
+    strategy.entry("PivRevLE", strategy.long, comment="PivRevLE", stop=stopLossLong)
+if (se)
+    strategy.entry("PivRevSE", strategy.short, comment="PivRevSE", stop=stopLossShort)
+
+// Exit on opposite signal or stop loss
+if (strategy.position_size > 0)
+    strategy.exit("Exit Long", from_entry="PivRevLE", stop=stopLossLong, when=se)
+if (strategy.position_size < 0)
+    strategy.exit("Exit Short", from_entry="PivRevSE", stop=stopLossShort, when=le)
+
+// Alerts
+if (le)
+    alert("Long Entry Signal - PivRevLE", alert.freq_once_per_bar_close)
+if (se)
+    alert("Short Entry Signal - PivRevSE", alert.freq_once_per_bar_close)
